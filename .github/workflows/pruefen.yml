@@ -1,0 +1,45 @@
+name: Prüfen
+on:
+  # Diese Installation lädt die Website nicht selbst hoch – das macht der
+  # Hoster (Netlify, Vercel, Cloudflare Pages), siehe docs/installation.md,
+  # Schritt 5. Geprüft wird trotzdem bei jedem Push und jedem Pull Request:
+  # Lint, SEO, Typen, Edge-Function-Typen und Tests.
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  seo-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Dieselbe Version wie beim Bauen. Mit Node 20 fehlten den Tests
+          # eingebautes WebSocket und fs.globSync – lokal (Node 24) grün,
+          # hier rot, und das am 11.09.2026 mitten im Ausrollen.
+          node-version: 24
+      - name: Install
+        run: npm install
+      - name: ESLint (alt-text, label-has-associated-control, a11y)
+        run: npm run lint
+      - name: SEO check (meta, JSON-LD, sitemap, robots)
+        run: npm run seo:check
+      # Der Build laeuft ueber SWC und prueft keine Typen. Ohne diesen Schritt
+      # koennen Typfehler unbemerkt bis in die Produktion durchlaufen.
+      - name: TypeScript
+        run: npx tsc --noEmit -p tsconfig.app.json
+      # Die Edge Functions laufen unter Deno und fielen bisher durch jedes
+      # Raster. Beim ersten Lauf am 11.09.2026 fand diese Prüfung einen echten
+      # Fehler: Der Aufnahmeantrag hat die Antworten auf die Zusatzfragen nie
+      # gespeichert. Eigene Konfiguration (typecheck.json statt deno.json),
+      # damit das Ausrollen bei Supabase davon unberührt bleibt.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Edge Functions (Typen)
+        run: deno check --no-lock --config supabase/functions/typecheck.json supabase/functions
+      - name: Unit tests (Kalender-Export, Formular-Bedingungen)
+        run: npm test
