@@ -1,0 +1,105 @@
+name: Build & Deploy
+on:
+  # DING wird nur geprüft; hochgeladen wird allein aus main (siehe deploy).
+  push:
+    branches:
+      - main
+      - DING
+      # Auch die Arbeitszweige. Vorher lief die Pruefung erst, wenn jemand
+      # einen Pull Request aufmachte - also oft Stunden nach dem Push, und
+      # bei einem Zweig ohne PR gar nicht. Gebaut wird hier nichts (der
+      # deploy-Job haengt an main), es kostet also nur die zwei Minuten
+      # Pruefung.
+      - 'claude/**'
+  # Auch Pull Requests auf DING prüfen. Vorher liefen sie durch kein Raster:
+  # Die Prüfung kam erst mit dem Push nach dem Merge, also nachdem jemand
+  # entschieden hatte. Der deploy-Job unten hängt an einem Push auf main und
+  # bleibt davon unberührt – ein Pull Request lädt nichts hoch.
+  pull_request:
+    branches:
+      - main
+      - DING
+jobs:
+  seo-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Dieselbe Version wie beim Bauen. Mit Node 20 fehlten den Tests
+          # eingebautes WebSocket und fs.globSync – lokal (Node 24) grün,
+          # hier rot, und das am 11.09.2026 mitten im Ausrollen.
+          node-version: 24
+      - name: Install
+        run: npm install
+      - name: ESLint (alt-text, label-has-associated-control, a11y)
+        run: npm run lint
+      - name: SEO check (meta, JSON-LD, sitemap, robots)
+        run: npm run seo:check
+      # Der Build laeuft ueber SWC und prueft keine Typen. Ohne diesen Schritt
+      # koennen Typfehler unbemerkt bis in die Produktion durchlaufen.
+      - name: TypeScript
+        run: npx tsc --noEmit -p tsconfig.app.json
+      # Die Edge Functions laufen unter Deno und fielen bisher durch jedes
+      # Raster. Beim ersten Lauf am 11.09.2026 fand diese Prüfung einen echten
+      # Fehler: Der Aufnahmeantrag hat die Antworten auf die Zusatzfragen nie
+      # gespeichert. Eigene Konfiguration (typecheck.json statt deno.json),
+      # damit das Ausrollen bei Supabase davon unberührt bleibt.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Edge Functions (Typen)
+        run: deno check --no-lock --config supabase/functions/typecheck.json supabase/functions
+      - name: Unit tests (Kalender-Export, Formular-Bedingungen)
+        run: npm test
+  deploy:
+    needs: seo-checks
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node.js setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Bis zum Umzug stand die Adresse der Datenbank in einer eingecheckten
+      # .env. Jeder Build ohne eigene Angaben sprach damit mit der Datenbank
+      # von DileHi – auch der eines fremden Vereins. Jetzt holt der Build sie
+      # aus dem Projekt, wie die Probeseite. Fehlt sie, bricht er ab
+      # (vite.config.ts).
+      - name: Datenbank-Adresse und öffentlichen Schlüssel holen
+        env:
+          TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          anon=$(curl -sS -f "https://api.supabase.com/v1/projects/$REF/api-keys" \
+            -H "Authorization: Bearer $TOKEN" \
+            | jq -r '.[] | select(.name == "anon") | .api_key')
+          if [ -z "$anon" ] || [ "$anon" = "null" ]; then
+            echo "Kein anon-Schlüssel im Projekt gefunden."
+            exit 1
+          fi
+          echo "::add-mask::$anon"
+          {
+            echo "VITE_SUPABASE_URL=https://$REF.supabase.co"
+            echo "VITE_SUPABASE_PROJECT_ID=$REF"
+            echo "VITE_SUPABASE_PUBLISHABLE_KEY=$anon"
+          } >> "$GITHUB_ENV"
+      - name: Install & Build
+        run: |
+          npm install
+          npm run build
+      - name: Deploy via FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          sudo apt-get install -y lftp
+          lftp -c "
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set ssl:verify-certificate false;
+            open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER;
+            mirror --reverse --delete --verbose ./dist/ /dilehi.de/
+          "
