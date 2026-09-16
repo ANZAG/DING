@@ -101,6 +101,96 @@ gehören in den Probelauf und danach in die Anleitung:
   Verwaltung, aber ein fremder Verein sieht es als Erstes — notieren, ob es
   stört.
 
+## Gefunden, bevor der Lauf begann
+
+Die Kopie anzulegen war schon der erste Teil des Probelaufs — drei Stellen sind
+dabei aufgefallen, ohne dass jemand eine Datenbank angefasst hätte:
+
+1. **Der Job `deploy` in `.github/workflows/deploy.yml`** lädt per FTP nach
+   dilehi.de. In der Kopie ist er raus; übrig bleibt die Prüfung, die Datei
+   heisst dort `pruefen.yml`. Für einen fremden Verein steht der Hinweis jetzt
+   in [`installation.md`](installation.md), Schritt 5.
+2. **`probeseite.yml`** gehört zu `ding.dilehi.de` und lädt ebenfalls auf
+   unseren Webspace. In einer fremden Installation hat sie nichts zu suchen —
+   in der Kopie ist sie gelöscht.
+3. **`__pycache__/nulcpython-314.pyc`** lag im Verzeichnis und wurde
+   mitgeliefert. Ein Python-Rest, der nie dorthin gehörte; raus, und
+   `.gitignore` kennt ihn jetzt.
+
+Die ersten beiden sind derselbe Fehler in zwei Gewändern: **Was zu DileHis
+Betrieb gehört, wird mit ausgeliefert.** Vor einer Weitergabe an einen echten
+Verein gehört die Liste der Workflows einmal durchgesehen — `backup.yml` und
+`digest.yml` bleiben, sie sind für jeden Verein; alles mit FTP oder
+`dilehi.de` darin nicht.
+
+## Schritt 4, erster Knopfdruck
+
+**Der Ausrollen-Knopf begrüsst einen neuen Verein mit einer Fehlermeldung.**
+Der erste Schritt „Datenbank ansehen" fragt die Datenbank nach ihrem Stand und
+liest dabei `supabase_migrations.schema_migrations` — das Verzeichnis der
+eingespielten Migrationen. Das legt der Supabase-CLI aber erst beim ersten
+Einspielen an. In einem eben erstellten Projekt gibt es das Schema noch nicht,
+und statt des Stands stand in der Zusammenfassung:
+
+```
+ERROR: 42P01: relation "supabase_migrations.schema_migrations" does not exist
+```
+
+Nicht schlimm — der Rest lief durch —, aber es ist das Erste, was jemand sieht,
+der zum ersten Mal auf den Knopf drückt. Und es ist kein Randfall, sondern der
+Normalfall: **Jede neue Installation trifft es.**
+
+Behoben: zwei Abfragen statt einer, die zweite nur, wenn es das Verzeichnis
+gibt. Der Schritt „Verzeichnis zurücksetzen" hatte denselben Fehler und steigt
+jetzt mit einem Satz aus, statt zu scheitern. Und die Zusammenfassung zeigt
+keinen JSON-Block mehr, sondern eine Tabelle: Tabellen, Konten, Ablagen,
+Verzeichnis. Durchgespielt gegen drei Antworten (leeres Projekt, eingerichtetes
+Projekt, Datenbank antwortet nicht).
+
+Wieder Fehler 20 aus dem Arbeitsstand, in neuem Gewand: **Was auf der Bühne
+nicht vorkommt, sieht man dort nicht.** Die Bühne legt `schema_migrations`
+selbst an — ein frisches Supabase-Projekt hat es nicht.
+
+Zweiter Lauf, jetzt mit Tabelle statt Fehlermeldung:
+
+| | |
+| --- | --- |
+| Tabellen | 76 |
+| Konten | 0 |
+| Ablagen | 5 |
+| Verzeichnis der Migrationen | 19 Einträge, von 00000000000000 bis 20260916110000 |
+
+**Damit ist die grösste Unbekannte weg:** Der Ausgangsstand und alle achtzehn
+Migrationen laufen in einem echten, leeren Supabase-Projekt durch — mit den
+Rechten, die ein Projekt dort wirklich hat, nicht mit denen der Bühne.
+
+Dabei noch etwas aufgefallen: **Die Zusammenfassung schwieg über das, was
+nicht lief.** Der Schritt „Anmeldung einstellen" überspringt sich, wenn die
+Variable `SITE_URL` fehlt — still. Gemerkt hätte man es erst, wenn der erste
+Einladungslink auf `localhost:3000` zeigt; genau dieser Fall steht in der
+Anleitung unter „Wenn etwas klemmt". Jetzt sagt die Zusammenfassung in beiden
+Fällen, woran man ist.
+
+## Schritt 3, und der Fund, den kein Test findet
+
+**`SETUP_SECRET` lag bei GitHub statt bei Supabase.** Beides heisst „Secrets",
+beides steht in der Anleitung, zwei Schritte auseinander — und niemand sagt
+etwas, wenn man es am falschen Ort ablegt: Der Ausrollen-Knopf braucht es
+nicht, und die Edge Function findet es nicht. Der erste Zugang wäre mit
+„Nicht möglich" gescheitert, und die Suche hätte beim Geheimnis selbst
+angefangen, nicht beim Ort.
+
+Das ist der Fund, für den ein Probelauf da ist: Kein Test findet ihn, keine
+Prüfung schlägt an, die Anleitung ist nicht falsch — sie ist nur nicht
+deutlich genug. Jetzt tragen die beiden Schritte den Ort im Titel („bei
+GitHub", „bei Supabase"), und ein Kasten in Schritt 2 sagt, dass zwei Orte
+denselben Namen tragen.
+
+Nebenbei die erste Bestätigung für den Einrichtungsassistenten: **Er hätte es
+gesagt.** `SETUP_SECRET` fehlt in Supabase → der Schritt „Erster Zugang" führt
+den Namen unter den fehlenden Geheimnissen auf. Zu sehen ist das aber erst,
+wenn die Website steht — also nach Schritt 5.
+
 ## Was danach passiert
 
 1. Die Liste der Stolpersteine kommt in [`installation.md`](installation.md),
