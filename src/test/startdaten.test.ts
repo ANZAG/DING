@@ -85,6 +85,49 @@ describe("Startdaten einer neuen Installation", () => {
     expect(kategorien).toHaveLength(0);
   });
 
+  it("nennt die Rollen so, wie ein fremder Verein sie nennen würde", async () => {
+    const rollen = await seedRows<{ key: string; label: string; description: string | null }>("role_catalog");
+    const name = (key: string) => rollen.find((r) => r.key === key)?.label;
+
+    expect(name("officiatus_1")).toBe("Admin");
+    expect(name("officiatus_2")).toBe("Co-Admin");
+    expect(name("herold")).toBe("Medienbeauftragter");
+    expect(name("schatzmeister")).toBe("Kassenwart");
+
+    // Von DileHis Ämtern darf nichts mehr zu sehen sein.
+    const sichtbar = rollen.map((r) => `${r.label} ${r.description ?? ""}`).join(" ");
+    expect(sichtbar).not.toMatch(/Officiatus|Herold|Schatzmeister/i);
+
+    // Die Schlüssel bleiben: An ihnen hängen über hundert Rechtezuweisungen
+    // und einiges im Programm. Fällt einer weg, ist das kein Umbenennen mehr.
+    expect(rollen.map((r) => r.key)).toContain("officiatus_1");
+  });
+
+  it("lässt die Rollen in Ruhe, sobald die Vereinsdaten eingetragen sind", async () => {
+    // Die Schranke der Rollennamen ist eine andere als die der übrigen
+    // Startdaten: Sie fragt nicht nach Konten, sondern nach dem Vereinsnamen.
+    // Sonst käme sie zu spät — den ersten Zugang legt man an, bevor man die
+    // Vereinsdaten einträgt.
+    const db = await leereDatenbank();
+    const dateien = readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")).sort();
+    const ROLLEN = "20260916120000_rollennamen.sql";
+
+    for (const f of dateien.filter((f) => f < ROLLEN)) {
+      await einspielen(db, f, readFileSync(`supabase/migrations/${f}`, "utf-8").replace(/\r\n/g, "\n"));
+    }
+    await db.exec(`update public.app_settings set org_name = 'Turnverein Beispiel e. V.';`);
+    for (const f of dateien.filter((f) => f >= ROLLEN)) {
+      await einspielen(db, f, readFileSync(`supabase/migrations/${f}`, "utf-8").replace(/\r\n/g, "\n"));
+    }
+
+    const rollen = (await db.query<{ key: string; label: string }>(
+      "select key, label from public.role_catalog where key = 'officiatus_1'"
+    )).rows;
+    expect(rollen[0].label).toBe("1. Officiatus");
+
+    await db.close();
+  });
+
   it("verschickt ab Werk über SMTP", async () => {
     const einstellungen = await seedRows<{ mail_transport: string }>("app_settings");
     expect(einstellungen).toHaveLength(1);
