@@ -1,4 +1,20 @@
 name: Build & Deploy
+
+# ACHTUNG, ZIEL PRUEFEN.
+#
+# Diese Datei kam mit der Kopie des Repos mit und lud nach /dilehi.de/ --
+# also auf die echte Vereinsseite. Gescheitert ist sie nur daran, dass die
+# FTP-Geheimnisse in diesem Projekt fehlen; mit ihnen haette eine
+# Probeinstallation die Seite eines laufenden Vereins ueberschrieben.
+#
+# Wer DING kopiert, prueft als Erstes diese drei Zeilen: Wohin laedt der
+# Deploy, und gehoert dieses Verzeichnis wirklich mir? Das Ziel steht ganz
+# unten im Schritt "Deploy via FTPS".
+#
+# Diese Installation laedt nach /ding.dilehi.de/. Ohne FTP_SERVER,
+# FTP_USERNAME und FTP_PASSWORD in den Geheimnissen dieses Projekts laeuft
+# der Schritt ins Leere -- gebaut und geprueft wird trotzdem.
+
 on:
   # DING wird nur geprüft; hochgeladen wird allein aus main (siehe deploy).
   push:
@@ -101,5 +117,5 @@ jobs:
             set ftp:ssl-protect-data true;
             set ssl:verify-certificate false;
             open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER;
-            mirror --reverse --delete --verbose ./dist/ /dilehi.de/
+            mirror --reverse --delete --verbose ./dist/ /ding.dilehi.de/
           "
