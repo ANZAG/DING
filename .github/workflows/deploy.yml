@@ -16,7 +16,7 @@ name: Build & Deploy
 # der Schritt ins Leere -- gebaut und geprueft wird trotzdem.
 
 on:
-  # DING wird nur geprüft; hochgeladen wird allein aus main (siehe deploy).
+  # DING wird nur geprueft; hochgeladen wird allein aus main (siehe deploy).
   push:
     branches:
       - main
@@ -27,10 +27,10 @@ on:
       # deploy-Job haengt an main), es kostet also nur die zwei Minuten
       # Pruefung.
       - 'claude/**'
-  # Auch Pull Requests auf DING prüfen. Vorher liefen sie durch kein Raster:
-  # Die Prüfung kam erst mit dem Push nach dem Merge, also nachdem jemand
-  # entschieden hatte. Der deploy-Job unten hängt an einem Push auf main und
-  # bleibt davon unberührt – ein Pull Request lädt nichts hoch.
+  # Auch Pull Requests auf DING pruefen. Vorher liefen sie durch kein Raster:
+  # Die Pruefung kam erst mit dem Push nach dem Merge, also nachdem jemand
+  # entschieden hatte. Der deploy-Job unten haengt an einem Push auf main und
+  # bleibt davon unberuehrt - ein Pull Request laedt nichts hoch.
   pull_request:
     branches:
       - main
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           # Dieselbe Version wie beim Bauen. Mit Node 20 fehlten den Tests
-          # eingebautes WebSocket und fs.globSync – lokal (Node 24) grün,
+          # eingebautes WebSocket und fs.globSync - lokal (Node 24) gruen,
           # hier rot, und das am 11.09.2026 mitten im Ausrollen.
           node-version: 24
       - name: Install
@@ -57,10 +57,10 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit -p tsconfig.app.json
       # Die Edge Functions laufen unter Deno und fielen bisher durch jedes
-      # Raster. Beim ersten Lauf am 11.09.2026 fand diese Prüfung einen echten
+      # Raster. Beim ersten Lauf am 11.09.2026 fand diese Pruefung einen echten
       # Fehler: Der Aufnahmeantrag hat die Antworten auf die Zusatzfragen nie
       # gespeichert. Eigene Konfiguration (typecheck.json statt deno.json),
-      # damit das Ausrollen bei Supabase davon unberührt bleibt.
+      # damit das Ausrollen bei Supabase davon unberuehrt bleibt.
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -80,10 +80,10 @@ jobs:
           node-version: 24
       # Bis zum Umzug stand die Adresse der Datenbank in einer eingecheckten
       # .env. Jeder Build ohne eigene Angaben sprach damit mit der Datenbank
-      # von DileHi – auch der eines fremden Vereins. Jetzt holt der Build sie
+      # von DileHi - auch der eines fremden Vereins. Jetzt holt der Build sie
       # aus dem Projekt, wie die Probeseite. Fehlt sie, bricht er ab
       # (vite.config.ts).
-      - name: Datenbank-Adresse und öffentlichen Schlüssel holen
+      - name: Datenbank-Adresse und oeffentlichen Schluessel holen
         env:
           TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           REF: ${{ secrets.SUPABASE_PROJECT_REF }}
@@ -92,7 +92,7 @@ jobs:
             -H "Authorization: Bearer $TOKEN" \
             | jq -r '.[] | select(.name == "anon") | .api_key')
           if [ -z "$anon" ] || [ "$anon" = "null" ]; then
-            echo "Kein anon-Schlüssel im Projekt gefunden."
+            echo "Kein anon-Schluessel im Projekt gefunden."
             exit 1
           fi
           echo "::add-mask::$anon"
