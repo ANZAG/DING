@@ -1,40 +1,42 @@
 name: Build & Deploy
 
-# ACHTUNG, ZIEL PRUEFEN.
+# ACHTUNG, ZIEL PRÜFEN.
 #
-# Diese Datei kam mit der Kopie des Repos mit und lud nach /dilehi.de/ --
-# also auf die echte Vereinsseite. Gescheitert ist sie nur daran, dass die
-# FTP-Geheimnisse in diesem Projekt fehlen; mit ihnen haette eine
-# Probeinstallation die Seite eines laufenden Vereins ueberschrieben.
+# Diese Datei lädt die gebaute Seite per FTP irgendwohin — und wohin, steht
+# hier in der Datei, nicht im Zugang. Die drei FTP-Geheimnisse bringen den
+# Ablauf nur bis ins Konto; dort liegen bei den meisten Hostern mehrere
+# Verzeichnisse nebeneinander, eines je Domain.
 #
-# Wer DING kopiert, prueft als Erstes diese drei Zeilen: Wohin laedt der
-# Deploy, und gehoert dieses Verzeichnis wirklich mir? Das Ziel steht ganz
-# unten im Schritt "Deploy via FTPS".
+# Wer DING kopiert, ändert als Erstes die Zeile `ZIEL:` ganz unten im Schritt
+# „Deploy via FTPS". Sonst lädt die Kopie in das Verzeichnis des Vereins, von
+# dem sie abstammt, und `mirror --delete` räumt dort auf, was nicht im Build
+# steht. Beinahe genau so ist es schon einmal gelaufen: Eine Kopie zeigte
+# weiter auf die Seite eines laufenden Vereins und scheiterte nur daran, dass
+# die FTP-Geheimnisse in ihrem Projekt fehlten.
 #
-# Diese Installation laedt nach /ding.dilehi.de/. Ohne FTP_SERVER,
-# FTP_USERNAME und FTP_PASSWORD in den Geheimnissen dieses Projekts laeuft
-# der Schritt ins Leere -- gebaut und geprueft wird trotzdem.
+# Ohne FTP_SERVER, FTP_USERNAME und FTP_PASSWORD läuft der Schritt ins Leere —
+# gebaut und geprüft wird trotzdem alles. Wer die Seite von einem Hoster bauen
+# lässt (Netlify, Vercel, Cloudflare Pages), braucht nur die Prüfung und kann
+# den Job `deploy` ganz löschen; siehe docs/installation.md, Schritt 5.
 
 on:
-  # DING wird nur geprueft; hochgeladen wird allein aus main (siehe deploy).
+  # Hochgeladen wird allein aus main (siehe deploy); sonst wird nur geprüft.
   push:
     branches:
       - main
-      - DING
-      # Auch die Arbeitszweige. Vorher lief die Pruefung erst, wenn jemand
-      # einen Pull Request aufmachte - also oft Stunden nach dem Push, und
+      # Auch die Arbeitszweige. Vorher lief die Prüfung erst, wenn jemand
+      # einen Pull Request aufmachte – also oft Stunden nach dem Push, und
       # bei einem Zweig ohne PR gar nicht. Gebaut wird hier nichts (der
-      # deploy-Job haengt an main), es kostet also nur die zwei Minuten
-      # Pruefung.
+      # deploy-Job hängt an main), es kostet also nur die zwei Minuten
+      # Prüfung.
       - 'claude/**'
-  # Auch Pull Requests auf DING pruefen. Vorher liefen sie durch kein Raster:
-  # Die Pruefung kam erst mit dem Push nach dem Merge, also nachdem jemand
-  # entschieden hatte. Der deploy-Job unten haengt an einem Push auf main und
-  # bleibt davon unberuehrt - ein Pull Request laedt nichts hoch.
+  # Auch Pull Requests prüfen. Vorher liefen sie durch kein Raster: Die
+  # Prüfung kam erst mit dem Push nach dem Merge, also nachdem jemand
+  # entschieden hatte. Der deploy-Job unten hängt an einem Push auf main und
+  # bleibt davon unberührt – ein Pull Request lädt nichts hoch.
   pull_request:
     branches:
       - main
-      - DING
 jobs:
   seo-checks:
     runs-on: ubuntu-latest
@@ -43,7 +45,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           # Dieselbe Version wie beim Bauen. Mit Node 20 fehlten den Tests
-          # eingebautes WebSocket und fs.globSync - lokal (Node 24) gruen,
+          # eingebautes WebSocket und fs.globSync – lokal (Node 24) grün,
           # hier rot, und das am 11.09.2026 mitten im Ausrollen.
           node-version: 24
       - name: Install
@@ -57,10 +59,10 @@ jobs:
       - name: TypeScript
         run: npx tsc --noEmit -p tsconfig.app.json
       # Die Edge Functions laufen unter Deno und fielen bisher durch jedes
-      # Raster. Beim ersten Lauf am 11.09.2026 fand diese Pruefung einen echten
+      # Raster. Beim ersten Lauf am 11.09.2026 fand diese Prüfung einen echten
       # Fehler: Der Aufnahmeantrag hat die Antworten auf die Zusatzfragen nie
       # gespeichert. Eigene Konfiguration (typecheck.json statt deno.json),
-      # damit das Ausrollen bei Supabase davon unberuehrt bleibt.
+      # damit das Ausrollen bei Supabase davon unberührt bleibt.
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
@@ -80,10 +82,10 @@ jobs:
           node-version: 24
       # Bis zum Umzug stand die Adresse der Datenbank in einer eingecheckten
       # .env. Jeder Build ohne eigene Angaben sprach damit mit der Datenbank
-      # von DileHi - auch der eines fremden Vereins. Jetzt holt der Build sie
+      # von DileHi – auch der eines fremden Vereins. Jetzt holt der Build sie
       # aus dem Projekt, wie die Probeseite. Fehlt sie, bricht er ab
       # (vite.config.ts).
-      - name: Datenbank-Adresse und oeffentlichen Schluessel holen
+      - name: Datenbank-Adresse und öffentlichen Schlüssel holen
         env:
           TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           REF: ${{ secrets.SUPABASE_PROJECT_REF }}
@@ -92,7 +94,7 @@ jobs:
             -H "Authorization: Bearer $TOKEN" \
             | jq -r '.[] | select(.name == "anon") | .api_key')
           if [ -z "$anon" ] || [ "$anon" = "null" ]; then
-            echo "Kein anon-Schluessel im Projekt gefunden."
+            echo "Kein anon-Schlüssel im Projekt gefunden."
             exit 1
           fi
           echo "::add-mask::$anon"
